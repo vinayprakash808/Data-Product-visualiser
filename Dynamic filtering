@@ -1,0 +1,89 @@
+library(shiny)
+library(ggplot2)
+library(dplyr)
+
+theNames <- names(Filter(is.factor,df))
+MyList  <- vector(mode = "list")
+for(i in theNames){
+  MyList[[i]] <- levels(df[,i])
+}
+
+ui <- fluidPage(tags$style(
+  HTML(
+    "
+    label {
+    width: 100%;
+    background: lightgrey;
+    padding: 5px;
+    border-radius: 5px;
+    }
+    "
+  )
+  ),
+  tabsetPanel(tabPanel(
+    "Factor_Bivariate_Analysis",
+    sidebarLayout(sidebarPanel(
+      fluidRow(
+        column(h6(
+          selectInput("se4", "Factors under the
+                      datasets", choices = c("", "Values"))
+          ), width = 5, offset =
+            0),
+        br(),
+        column(h6(
+          actionButton("Val", "See the Values", width =
+                         200, offset =
+                         -1)
+        ), width = 5, offset = 0),
+        br(),
+        column(h6(selectInput(
+          "state", "Filters", choices = c("",MyList)
+        )), width = 5, offset = 0)
+        ), width =
+        1000
+      ),
+      mainPanel(
+        h5(plotOutput(
+          "Plot4", width = 1000, height =
+            500
+        ), width = 1000), h5(dataTableOutput("Plot5"), width = 1000)
+      ))
+  )))
+
+
+server <- function(input, output, session) {
+  f_data <- reactive({
+    wanted_case <- input$state
+    cat("selected case ", wanted_case, "\n\n")
+    if (wanted_case == "") {
+      fd <- df
+    } else {
+      
+      ##fd <- filter(df, A %in% wanted_case |C %in% wanted_case | E %in% wanted_case)
+      ## EDIT to account for any number of factor variables
+      ## assumes any filtering variable is a factor (i.e. not character)
+      fd <- df %>%
+        filter_if(.predicate = is.factor,
+                  .vars_predicate = any_vars (. == wanted_case))
+      print(fd)
+    }
+    
+    return(fd)
+  })
+  
+  Plot4 <- reactive({
+    if (input$se4 == "Values") {
+      print(ggplot(f_data(), aes(x = A, fill = A)) + geom_bar(stat = "count"))
+    } else if (input$se4 == "NULL") {
+      ""
+    }
+  })
+  
+  
+  
+  output$Plot4 <- renderPlot({
+    Plot4()
+  })
+}
+
+shinyApp(ui, server)
