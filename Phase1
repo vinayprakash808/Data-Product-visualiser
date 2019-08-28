@@ -1,0 +1,241 @@
+  #install.packages("magrittr")
+  #library(magrittr)
+  #install.packages("gridExtra")
+  #library(gridExtra)
+  #install.packages("ggplot2")
+  #library(ggplot2)
+  #library(cowplot)
+  #library(tidyverse)
+  #library(dplyr)
+  #library(tidyr)
+  #library(shinythemes)
+  # Data Load ---------------------------------------------------------------
+  # df <- read.csv(file.choose())
+    df <- as.data.frame(df)
+  # percentage of count for categorical univariate ------------------------
+  p1 <- list()
+  p <- list()
+  bs <- names(Filter(is.factor, df))
+  for(i in bs)
+  {
+    p1[[i]] <- as.data.frame(round(prop.table(table(df[,i]))*100,1))
+    do.call(rbind,p1) %>% as.data.frame()
+  }
+  
+  # mean for numeric variable univariate ------------------------------------
+  bs1 <- c("mean","median","standard_deviation")
+  p2 <- df %>% summarise_if(is.numeric, list(mean=mean), na.rm = TRUE)
+  p2 <- round(p2,1)
+  p2 <- stack(p2)
+  p2$ind <- as.character(p2$ind)
+  p2 <- p2 %>% extract(ind, into = c("Measurement", "stat"), "(.*)_([^_]+)$")
+  # median for numeric variable univariate ------------------------------------
+  p3 <- df %>% summarise_if(is.numeric, list(median=median), na.rm = TRUE)
+  p3 <- round(p3,1)
+  p3 <- stack(p3)
+  p3$ind <- as.character(p3$ind)
+  p3 <- p3 %>% extract(ind, into = c("Measurement", "stat"), "(.*)_([^_]+)$")
+  # sd for numeric variable univariate ------------------------------------
+  p4 <- df %>% summarise_if(is.numeric, list(sd=sd), na.rm = TRUE)
+  p4 <- round(p4,1)
+  p4 <- stack(p4)
+  p4$ind <- as.character(p4$ind)
+  p4 <- p4 %>% extract(ind, into = c("Measurement", "stat"), "(.*)_([^_]+)$")
+  # Data Distribution -------------------------------------------------------
+  df <- as.data.frame(df)
+  p10 <- list()
+  fg <- list()
+  zs <- names(Filter(is.numeric, df))
+  dis <- function(data,variable)
+  {
+    fg <- qplot(variable, data = data, geom = "density")
+    fg
+  }
+  # Box plot -------------------------------------------------------
+  fg1 <- list()
+  box_plot <- function(data,variable)
+  {
+    fg1 <- ggplot(data = data, aes(x = "", y = variable)) + geom_boxplot()
+    fg1
+  }
+  p11 <- list()
+  ps <- names(Filter(is.numeric, df))
+  # Bi Variate --------------------------------------------------------------
+  d1 <- stack(lapply(df, class))[2:1] #df should be dataframe
+  s1 <- as.data.frame(combn(names(df),2,paste,collapse="&"))
+  colnames(s1) <- "d"
+  s1$d1 <- sub("\\&.*", "", s1$d)
+  s1$d2 <- sapply(strsplit(s1$d,"\\&"),'[',2)
+  s1$d3 <- d1$values[match(s1$d1,d1$ind)]
+  s1$d4 <- d1$values[match(s1$d2,d1$ind)]
+  s1$d3 <- replace(s1$d3,s1$d3=="integer","numeric")
+  s1$d4 <- replace(s1$d4,s1$d4=="integer","numeric")
+  s1$d5 <- paste(s1$d3,s1$d4,sep = "&")
+  # created a class called class1
+  class1 <- function(data,var) {
+    data[which(data$d==var),"d5"]}
+  # if the variable is equal to "numeric&numeric" and so on  ----------------
+  fv <- list()
+  for(i in s1$d)
+  {
+    while (class1(s1,i)=="numeric&numeric") {
+      fv[i] <- paste(s1[which(s1$d==i),"d1"],s1[which(s1$d==i),"d2"],sep = "&")
+      break
+    }}
+  fv <- stack(fv)
+  fv$ind <- as.character(fv$ind)
+  fv$v1 <- sapply(strsplit(fv$ind,"\\&"),'[',1)
+  fv$v2 <- sapply(strsplit(fv$ind,"\\&"),'[',2)
+  p96 <- list()
+  # if the variable is equal to "factor&factor" and so on  ----------------
+  fv1 <- list()
+  for(i in s1$d)
+  {
+    while (class1(s1,i)=="factor&factor") {
+      fv1[i] <- paste(s1[which(s1$d==i),"d1"],s1[which(s1$d==i),"d2"],sep = "&")
+      break
+    }}
+  fv1 <- stack(fv1)
+  fv1$ind <- as.character(fv1$ind)
+  fv1$v1 <- sapply(strsplit(fv1$ind,"\\&"),'[',1)
+  fv1$v2 <- sapply(strsplit(fv1$ind,"\\&"),'[',2)
+  fv1$v3 <- c("percentage")
+  io <- list()
+  asd <- list()
+  for(i in 1:nrow(fv1))
+  { io[[i]] <- tapply(df[,fv1$v1[i]], df[,fv1$v2[i]], FUN = function(x) length(unique(x)))
+  }
+  for(i in 1:nrow(fv1))
+  { asd[[i]] <- stack(unlist(io[i]))
+  colnames(asd[[i]]) <- c(fv1$v1[i],fv1$v2[i])
+  asd[[i]] <- data.frame(asd[[i]]) }
+  for(i in 1:nrow(fv1))
+  {asd[[i]]$percentage <- round((asd[[i]][1]/sum(asd[[i]][1]))*100,1)}
+  p97 <- list()
+  # Filtering code ----------------------------------------------------------
+  theNames <- names(Filter(is.factor,df))
+  MyList  <- vector(mode = "list")
+  for(i in theNames){
+    MyList[[i]] <- levels(df[,i])
+  }
+  # App ---------------------------------------------------------------------
+  
+  library(shiny)
+  
+  ui <- fluidPage(
+    tabsetPanel(tabPanel(
+      "Factor_Univariate_Analysis",sidebarLayout(
+        sidebarPanel(
+          column(h6(selectInput("se1","Factors under the dataset",choices = c("",names(Filter(is.factor, df))))),width = 11,height= 20,offset = 0),
+          column(h6(selectInput("state", "Filters", MyList)),width = 11,height= 20,offset = 0)),
+        mainPanel(h5(plotOutput("Plot1",width = 600,height = 1500)))
+        )
+      ),
+      tabPanel(
+        "Numeric_Univariate_Analysis",sidebarLayout(
+          sidebarPanel(
+            column(h6(selectInput("se2","Numbers under the dataset",choices = c("","mean","median","standard_deviation","Data Distribution","Box Plot"))),width = 11,height= 20,offset = 0),width = 1000),
+          mainPanel(h5(plotOutput("Plot2",width = 1000,height = 500)))
+        )
+      ),
+      tabPanel(
+        "Numeric_Bivariate_Analysis",sidebarLayout(
+          sidebarPanel(
+            column(h6(selectInput("se3","Numbers under the dataset",choices = c("",s1[which(s1$d5=="numeric&numeric"),"d"]))),width = 11,height= 20,offset = 0),width = 1000),
+          mainPanel(h5(plotOutput("Plot3",width = 1000,height = 500)))
+        )
+      ),
+      tabPanel(
+        "Factor_Bivariate_Analysis",sidebarLayout(
+          sidebarPanel(
+            fluidRow(column(h6(selectInput("se4","Factors under the dataset",choices = c("",s1[which(s1$d5=="factor&factor"),"d"]))),width = 5,offset = 0),br(),column(h6(actionButton("Val","See the Values",width = 200,offset=-1)),width = 5,offset = 0)),width = 1000),
+          mainPanel(h5(plotOutput("Plot4",width = 1000,height = 500),width=1000),h5(dataTableOutput("Plot5"),width=1000))
+        )
+      )
+    )
+    )
+  server <- function(input, output, session) {
+    Plot1 <- reactive(
+      for(i in bs)
+      {if (input$se1 == i) {
+        p[[i]] <- print(ggplot(data=p1[[i]],aes_string(x=reorder(p1[[i]]$Var1,+p1[[i]]$Freq),y=p1[[i]]$Freq,fill=p1[[i]]$Freq))+geom_bar(stat = "identity")+ylab("Percentage")+xlab(i)+theme(axis.text.x=element_text(angle=90, hjust=1,size = 12))+geom_text(aes_string(label = p1[[i]]$Freq),size=4,vjust = 1,colour="black")+coord_flip())
+      } else if (input$se1 == "NULL") {
+        ""
+      }})
+    output$Plot1 <- renderPlot(
+      { 
+        Plot1()
+      }
+    )
+    Plot2 <- reactive(
+      for(i in bs1)
+      {if (input$se2 == "mean") {
+        print(ggplot(data = p2,aes(x=Measurement,y=values,color=stat))+geom_bar(stat = "identity")+ylab("mean")+xlab("Numerical_Values")+facet_wrap("stat")+theme(axis.text.x=element_text(angle=90, hjust=1,size = 12))+geom_text(aes_string(label = "values"),size=4,vjust = -0.5,colour="black"))
+      } else if (input$se2 == "median") {
+        print(ggplot(data = p3,aes(x=Measurement,y=values,color=stat))+geom_bar(stat = "identity")+ylab("median")+xlab("Numerical_Values")+facet_wrap("stat")+theme(axis.text.x=element_text(angle=90, hjust=1,size = 12))+geom_text(aes_string(label = "values"),size=4,vjust = -0.5,colour="black"))
+      } else if (input$se2 == "standard_deviation") {
+        print(ggplot(data = p4,aes(x=Measurement,y=values,color=stat))+geom_bar(stat = "identity")+ylab("standard_deviation")+xlab("Numerical_Values")+facet_wrap("stat")+theme(axis.text.x=element_text(angle=90, hjust=1,size = 12))+geom_text(aes_string(label = "values"),size=4,vjust = -0.5,colour="black"))
+      } else if (input$se2 == "Data Distribution") {
+        for(i in zs)
+        {
+          p10[[i]] <- dis(df,df[,i])+xlab(i)
+          do.call(grid.arrange,p10)
+        }
+      } else if (input$se2 == "Box Plot") {
+        for(i in ps)
+        {
+          p11[[i]] <- box_plot(df,df[,i])+xlab(i)
+          do.call(grid.arrange,p11)
+        }
+      }
+        else if (input$se2 == "NULL") {
+        ""
+      }
+        })
+    output$Plot2 <- renderPlot(
+      { 
+        Plot2()
+      }
+    )
+    Plot3 <- reactive(
+      for(i in fv$v1){
+        for(j in fv$v2)
+      {if (input$se3 == paste(i,j,sep = "&")) {
+        print(ggplot(df,aes_string(x=i,y=j))+geom_point())
+      } else if (input$se3 == "NULL") {
+        ""
+      }}})
+    output$Plot3 <- renderPlot(
+      { 
+        Plot3()
+      }
+    )
+    Plot4 <- reactive(
+      for(i in 1:nrow(fv1)){
+        {if (input$se4 == paste(fv1$v1[i],fv1$v2[i],sep = "&")) {
+          print(ggplot(asd[[i]],aes_string(x=fv1$v2[[i]],y=fv1$v1[[i]],fill=fv1$v1[[i]]))+geom_bar(stat = "identity")+geom_text(aes_string(label = fv1$v1[[i]]),size=3,vjust = -0.5,colour="black")+theme(axis.text.x=element_text(angle=90, hjust=1,size = 7.5))+ggtitle("Distinct Counts"))
+        } else if (input$se4 == "NULL") {
+          ""
+        }}})
+    output$Plot4 <- renderPlot(
+      { 
+        Plot4()
+      }
+    )
+    Plot5 <- reactive(
+        { if (input$se4 == paste(fv1$v1[i],fv1$v2[i],sep = "&")) {
+          eventReactive(
+          input$Val,{
+          print(table(asd[[i]][,fv1$v1[i]],asd[[i]][,fv1$v2[i]]))
+        })} else if (input$se4 == "NULL") {
+          ""
+        }}
+    )
+    output$Plot5 <- renderDataTable(
+      {
+        Plot5()
+      }
+    )
+  }
+  
+  shinyApp(ui, server)
